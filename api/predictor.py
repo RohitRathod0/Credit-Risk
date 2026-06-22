@@ -1,16 +1,24 @@
-import pickle
+import joblib
 import numpy as np
 import pandas as pd
 import shap
 from datetime import datetime, timezone
+from sklearn import set_config
 
-with open("models/woe_pipeline.pkl", "rb") as f:
-    woe_pipeline = pickle.load(f)
+set_config(transform_output="pandas")
 
-with open("models/logreg_model.pkl", "rb") as f:
-    logreg_model = pickle.load(f)
+woe_pipeline = joblib.load("models/woe_pipeline.pkl")
+logreg_model = joblib.load("models/logreg_model.pkl")
 
 MODEL_VERSION = "logreg_v1"
+
+_imputer = woe_pipeline.named_steps["imputer"]
+_woe = woe_pipeline.named_steps["woe"]
+
+COLUMN_MAP = {
+    "NumberOfTime3059DaysPastDueNotWorse": "NumberOfTime30-59DaysPastDueNotWorse",
+    "NumberOfTime6089DaysPastDueNotWorse": "NumberOfTime60-89DaysPastDueNotWorse",
+}
 
 _background = np.zeros((1, len(logreg_model.coef_[0])))
 _explainer = shap.LinearExplainer(logreg_model, _background)
@@ -25,8 +33,10 @@ def _risk_band(prob: float) -> str:
 
 
 def score_applicant(data: dict) -> dict:
-    df = pd.DataFrame([data])
-    woe_df = woe_pipeline.transform(df)
+    renamed = {COLUMN_MAP.get(k, k): v for k, v in data.items()}
+    df = pd.DataFrame([renamed])
+    X_imp = _imputer.transform(df)
+    woe_df = _woe.transform(X_imp)
     prob = float(logreg_model.predict_proba(woe_df)[0][1])
     raw_shap = _explainer.shap_values(woe_df)
     sv = (raw_shap[1] if isinstance(raw_shap, list) else raw_shap)[0]
