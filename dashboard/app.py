@@ -79,6 +79,7 @@ def page_loan_officer():
         ax_shap.axvline(0, color="white", linewidth=0.8)
         ax_shap.set_xlabel("SHAP Value")
         st.pyplot(fig_shap)
+        st.success(f"✅ FOIR: {foir:.2f} — Within RBI guideline (max 0.50)") if foir < 0.50 else st.warning(f"⚠️ FOIR: {foir:.2f} — Exceeds RBI guideline (max 0.50)")
 
 
 def page_portfolio():
