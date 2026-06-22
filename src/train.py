@@ -6,7 +6,7 @@ from sklearn.pipeline import Pipeline
 from sklearn.impute import SimpleImputer
 from sklearn.linear_model import LogisticRegression
 from sklearn.model_selection import train_test_split
-from sklearn.preprocessing import FunctionTransformer
+from sklearn import set_config
 from optbinning import BinningProcess
 import lightgbm as lgb
 import os
@@ -35,13 +35,8 @@ def load_woe(path="data/cs-training-woe.csv"):
     return pd.read_csv(path, index_col=0)
 
 
-def make_array_to_df(feature_names):
-    def _fn(X):
-        return pd.DataFrame(X, columns=feature_names)
-    return FunctionTransformer(_fn)
-
-
 def build_woe_pipeline(features):
+    set_config(transform_output="pandas")
     binning_transform_params = {feat: {"metric": "woe"} for feat in features}
     binning_process = BinningProcess(
         variable_names=features,
@@ -49,7 +44,6 @@ def build_woe_pipeline(features):
     )
     pipeline = Pipeline([
         ("imputer", SimpleImputer(strategy="median")),
-        ("to_df", make_array_to_df(features)),
         ("woe", binning_process),
         ("logreg", LogisticRegression(
             max_iter=1000,
