@@ -1,0 +1,10 @@
+numpy<2
+pandas
+scikit-learn
+optbinning
+lightgbm
+shap
+fastapi
+uvicorn[standard]
+pydantic
+joblib
