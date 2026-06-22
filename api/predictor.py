@@ -20,6 +20,20 @@ COLUMN_MAP = {
     "NumberOfTime6089DaysPastDueNotWorse": "NumberOfTime60-89DaysPastDueNotWorse",
 }
 
+# Original input field names in column order (index matches fN from WOE transformer)
+FEATURE_NAMES = [
+    "RevolvingUtilizationOfUnsecuredLines",
+    "age",
+    "NumberOfTime3059DaysPastDueNotWorse",
+    "DebtRatio",
+    "MonthlyIncome",
+    "NumberOfOpenCreditLinesAndLoans",
+    "NumberOfTimes90DaysLate",
+    "NumberRealEstateLoansOrLines",
+    "NumberOfTime6089DaysPastDueNotWorse",
+    "NumberOfDependents",
+]
+
 _background = np.zeros((1, len(logreg_model.coef_[0])))
 _explainer = shap.LinearExplainer(logreg_model, _background)
 
@@ -42,7 +56,14 @@ def score_applicant(data: dict) -> dict:
     sv = (raw_shap[1] if isinstance(raw_shap, list) else raw_shap)[0]
     cols = list(woe_df.columns) if hasattr(woe_df, "columns") else [f"f{i}" for i in range(len(sv))]
     ranked = sorted(zip(cols, sv), key=lambda x: abs(x[1]), reverse=True)
-    top_3 = [{"feature": f, "shap_value": round(float(v), 4)} for f, v in ranked[:3]]
+    def _readable_name(col: str) -> str:
+        """Map internal fN column names back to original input field names."""
+        if col.startswith("f") and col[1:].isdigit():
+            idx = int(col[1:])
+            if idx < len(FEATURE_NAMES):
+                return FEATURE_NAMES[idx]
+        return col
+    top_3 = [{"feature": _readable_name(f), "shap_value": round(float(v), 4)} for f, v in ranked[:3]]
     return {
         "default_probability": round(prob, 4),
         "risk_band": _risk_band(prob),
