@@ -7,6 +7,32 @@ import streamlit as st
 DB_PATH = "data/predictions.db"
 API_URL = "http://127.0.0.1:8000/credit-score"
 
+_LABEL_MAP = {
+    "RevolvingUtilizationOfUnsecuredLines": "Credit Utilization",
+    "NumberOfTimes90DaysLate": "90+ Days Late",
+    "NumberOfTime3059DaysPastDueNotWorse": "30-59 Days Late",
+    "DebtRatio": "FOIR Ratio",
+    "MonthlyIncome": "Monthly Income",
+    "age": "Applicant Age",
+    "NumberOfOpenCreditLinesAndLoans": "Active Loans",
+    "NumberRealEstateLoansOrLines": "Real Estate Loans",
+    "NumberOfTime6089DaysPastDueNotWorse": "60-89 Days Late",
+    "NumberOfDependents": "Dependents",
+}
+
+_EXPLAIN = {
+    "Credit Utilization": lambda v: f"Credit utilization at {v:.0%} — {'dangerously high' if v > 0.7 else 'elevated' if v > 0.4 else 'acceptable'}. High utilization signals financial stress.",
+    "90+ Days Late":       lambda v: f"{'No serious delinquencies' if v == 0 else str(int(v)) + ' serious late payment(s) on record'}. {'Clean history.' if v == 0 else 'Major negative signal for repayment capacity.'}",
+    "30-59 Days Late":     lambda v: f"{'No minor delinquencies' if v == 0 else str(int(v)) + ' minor late payment(s) detected'}. {'Positive signal.' if v == 0 else 'Indicates occasional payment stress.'}",
+    "FOIR Ratio":          lambda v: f"FOIR at {v:.0%} — {'exceeds RBI guideline of 50%.' if v >= 0.5 else 'within RBI guideline of 50%.'} {'Limited repayment capacity.' if v >= 0.5 else 'Adequate repayment capacity.'}",
+    "Monthly Income":      lambda v: f"Monthly income ₹{int(v):,} — {'below threshold for standard products.' if v < 3000 else 'adequate for loan servicing.'}",
+    "Applicant Age":       lambda v: f"Age {int(v)} — {'young applicant, limited credit history likely.' if v < 28 else 'mature applicant, stable profile expected.'}",
+    "Active Loans":        lambda v: f"{int(v)} active loan(s) — {'over-leveraged.' if v > 7 else 'manageable obligation count.'}",
+    "Real Estate Loans":   lambda v: f"{int(v)} real estate loan(s) — {'asset-backed obligations present.' if v > 0 else 'no property-backed obligations.'}",
+    "60-89 Days Late":     lambda v: f"{'No moderate delinquencies.' if v == 0 else str(int(v)) + ' moderate late payment(s).'}",
+    "Dependents":          lambda v: f"{int(v)} dependent(s) — {'higher financial obligations.' if v > 2 else 'manageable family obligations.'}",
+}
+
 
 def score_label(score):
     if score > 650:
@@ -21,16 +47,16 @@ def page_loan_officer():
 
     with st.form("loan_form"):
         util = st.slider("Credit Utilization Ratio", 0.0, 1.0, 0.5)
-        age = st.number_input("Applicant Age", min_value=18, max_value=80, value=35)
-        late_3059 = st.number_input("30-59 Days Late Payments", min_value=0, max_value=20, value=0)
         foir = st.slider("FOIR - Fixed Obligation to Income Ratio", 0.0, 1.0, 0.3)
+        age = st.number_input("Applicant Age", min_value=18, max_value=80, value=35)
         income = st.number_input("Monthly Income (USD)", min_value=0, value=5000)
-        open_loans = st.number_input("Total Active Loans and Credit Lines", min_value=0, value=5)
-        late_90 = st.number_input("90+ Days Late Payments", min_value=0, max_value=20, value=0)
-        real_estate = st.number_input("Real Estate Loans", min_value=0, max_value=10, value=1)
+        late_3059 = st.number_input("30-59 Days Late Payments", min_value=0, max_value=20, value=0)
         late_6089 = st.number_input("60-89 Days Late Payments", min_value=0, max_value=20, value=0)
+        late_90 = st.number_input("90+ Days Late Payments", min_value=0, max_value=20, value=0)
+        open_loans = st.number_input("Total Active Loans and Credit Lines", min_value=0, value=5)
+        real_estate = st.number_input("Real Estate Loans", min_value=0, max_value=10, value=1)
         dependents = st.number_input("Number of Dependents", min_value=0, max_value=10, value=2)
-        submitted = st.form_submit_button("Assess Credit Risk")
+        submitted = st.form_submit_button("Assess Credit Risk", use_container_width=True)
 
     if submitted:
         payload = {
@@ -53,33 +79,62 @@ def page_loan_officer():
         top3 = result["top_3_reasons"]
         dot, label = score_label(score)
 
-        c1, c2, c3 = st.columns(3)
-        c1.metric("Credit Score", f"{dot} {score}", label)
-        c2.metric("Risk Band", band)
-        c3.metric("Default Probability", f"{prob * 100:.2f}%")
-
-        st.subheader("Top 3 Factors Affecting This Decision")
-        _label_map = {
-            "RevolvingUtilizationOfUnsecuredLines": "Credit Utilization",
-            "NumberOfTimes90DaysLate": "90+ Days Late",
-            "NumberOfTime3059DaysPastDueNotWorse": "30-59 Days Late",
-            "DebtRatio": "FOIR Ratio",
-            "MonthlyIncome": "Monthly Income",
-            "age": "Applicant Age",
-            "NumberOfOpenCreditLinesAndLoans": "Active Loans",
-            "NumberRealEstateLoansOrLines": "Real Estate Loans",
-            "NumberOfTime6089DaysPastDueNotWorse": "60-89 Days Late",
-            "NumberOfDependents": "Dependents",
+        _input_map = {
+            "Credit Utilization": util, "FOIR Ratio": foir, "Applicant Age": age,
+            "Monthly Income": income, "30-59 Days Late": late_3059, "60-89 Days Late": late_6089,
+            "90+ Days Late": late_90, "Active Loans": open_loans,
+            "Real Estate Loans": real_estate, "Dependents": dependents,
         }
-        _labels = [_label_map.get(r["feature"], r["feature"]) for r in top3]
-        _values = [r["shap_value"] for r in top3]
-        _colors = ["#FF4B4B" if v > 0 else "#00CC44" for v in _values]
-        fig_shap, ax_shap = plt.subplots()
-        ax_shap.barh(_labels, _values, color=_colors)
-        ax_shap.axvline(0, color="white", linewidth=0.8)
-        ax_shap.set_xlabel("SHAP Value")
-        st.pyplot(fig_shap)
-        st.success(f"✅ FOIR: {foir:.2f} — Within RBI guideline (max 0.50)") if foir < 0.50 else st.warning(f"⚠️ FOIR: {foir:.2f} — Exceeds RBI guideline (max 0.50)")
+
+        st.divider()
+        col_left, col_right = st.columns([2, 3])
+
+        with col_left:
+            st.subheader("Decision Explanation")
+            if band == "Low Risk":
+                st.success("✅ Applicant appears financially stable. Loan recommended for approval.")
+            elif band == "Medium Risk":
+                st.warning("⚠️ Applicant shows moderate risk. Consider reduced loan amount or higher interest rate.")
+            else:
+                st.error("🚨 High likelihood of default. Loan not recommended without collateral.")
+
+            st.markdown("**Key Risk Factors:**")
+            for r in top3:
+                feat_label = _LABEL_MAP.get(r["feature"], r["feature"])
+                val = _input_map.get(feat_label, 0)
+                explain_fn = _EXPLAIN.get(feat_label)
+                explanation = explain_fn(val) if explain_fn else feat_label
+                prefix = "⚠️" if r["shap_value"] > 0 else "✅"
+                st.markdown(f"{prefix} {explanation}")
+
+            st.divider()
+            st.caption("📋 RBI Compliance: WoE/IV Logistic Regression | Decision basis: Income, repayment history, credit utilization | Audit trail: Logged to predictions.db")
+
+        with col_right:
+            st.subheader("Assessment Result")
+            c1, c2, c3 = st.columns(3)
+            c1.metric("Credit Score", f"{dot} {score}", label)
+            c2.metric("Risk Band", band)
+            c3.metric("Default Probability", f"{prob * 100:.2f}%")
+            st.divider()
+            if foir < 0.50:
+                st.success(f"✅ FOIR: {foir:.2f} — Within RBI guideline (max 0.50)")
+            else:
+                st.warning(f"⚠️ FOIR: {foir:.2f} — Exceeds RBI guideline (max 0.50)")
+            st.subheader("Top 3 Factors Affecting This Decision")
+            _labels = [_LABEL_MAP.get(r["feature"], r["feature"]) for r in top3]
+            _values = [r["shap_value"] for r in top3]
+            _colors = ["#FF4B4B" if v > 0 else "#00CC44" for v in _values]
+            plt.rcParams["figure.facecolor"] = "#0e1117"
+            plt.rcParams["axes.facecolor"] = "#0e1117"
+            plt.rcParams["text.color"] = "white"
+            plt.rcParams["axes.labelcolor"] = "white"
+            plt.rcParams["xtick.color"] = "white"
+            fig_shap, ax_shap = plt.subplots(figsize=(8, 3))
+            ax_shap.barh(_labels, _values, color=_colors)
+            ax_shap.axvline(0, color="white", linewidth=0.8)
+            ax_shap.set_xlabel("SHAP Value")
+            st.pyplot(fig_shap)
 
 
 def page_portfolio():
