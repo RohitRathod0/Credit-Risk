@@ -4,6 +4,8 @@ import pandas as pd
 import requests
 import streamlit as st
 
+st.set_page_config(layout="wide")
+
 DB_PATH = "data/predictions.db"
 API_URL = "http://127.0.0.1:8000/credit-score"
 
@@ -43,20 +45,25 @@ def score_label(score):
 
 
 def page_loan_officer():
+    # Section 1 — Title
     st.title("Credit Risk Assessment — Loan Officer Portal")
 
-    with st.form("loan_form"):
-        util = st.slider("Credit Utilization Ratio", 0.0, 1.0, 0.5)
-        foir = st.slider("FOIR - Fixed Obligation to Income Ratio", 0.0, 1.0, 0.3)
-        age = st.number_input("Applicant Age", min_value=18, max_value=80, value=35)
-        income = st.number_input("Monthly Income (USD)", min_value=0, value=5000)
-        late_3059 = st.number_input("30-59 Days Late Payments", min_value=0, max_value=20, value=0)
-        late_6089 = st.number_input("60-89 Days Late Payments", min_value=0, max_value=20, value=0)
-        late_90 = st.number_input("90+ Days Late Payments", min_value=0, max_value=20, value=0)
-        open_loans = st.number_input("Total Active Loans and Credit Lines", min_value=0, value=5)
-        real_estate = st.number_input("Real Estate Loans", min_value=0, max_value=10, value=1)
-        dependents = st.number_input("Number of Dependents", min_value=0, max_value=10, value=2)
-        submitted = st.form_submit_button("Assess Credit Risk", use_container_width=True)
+    # Section 2 — Form (left) + Results (right) side by side
+    form_col, result_col = st.columns([1, 1])
+
+    with form_col:
+        with st.form("loan_form"):
+            util = st.slider("Credit Utilization Ratio", 0.0, 1.0, 0.5)
+            foir = st.slider("FOIR - Fixed Obligation to Income Ratio", 0.0, 1.0, 0.3)
+            age = st.number_input("Applicant Age", min_value=18, max_value=80, value=35)
+            income = st.number_input("Monthly Income (USD)", min_value=0, value=5000)
+            late_3059 = st.number_input("30-59 Days Late Payments", min_value=0, max_value=20, value=0)
+            late_6089 = st.number_input("60-89 Days Late Payments", min_value=0, max_value=20, value=0)
+            late_90 = st.number_input("90+ Days Late Payments", min_value=0, max_value=20, value=0)
+            open_loans = st.number_input("Total Active Loans and Credit Lines", min_value=0, value=5)
+            real_estate = st.number_input("Real Estate Loans", min_value=0, max_value=10, value=1)
+            dependents = st.number_input("Number of Dependents", min_value=0, max_value=10, value=2)
+            submitted = st.form_submit_button("Assess Credit Risk", use_container_width=True)
 
     if submitted:
         payload = {
@@ -86,42 +93,17 @@ def page_loan_officer():
             "Real Estate Loans": real_estate, "Dependents": dependents,
         }
 
-        st.divider()
-        col_left, col_right = st.columns([2, 3])
-
-        with col_left:
-            st.subheader("Decision Explanation")
-            if band == "Low Risk":
-                st.success("✅ Applicant appears financially stable. Loan recommended for approval.")
-            elif band == "Medium Risk":
-                st.warning("⚠️ Applicant shows moderate risk. Consider reduced loan amount or higher interest rate.")
-            else:
-                st.error("🚨 High likelihood of default. Loan not recommended without collateral.")
-
-            st.markdown("**Key Risk Factors:**")
-            for r in top3:
-                feat_label = _LABEL_MAP.get(r["feature"], r["feature"])
-                val = _input_map.get(feat_label, 0)
-                explain_fn = _EXPLAIN.get(feat_label)
-                explanation = explain_fn(val) if explain_fn else feat_label
-                prefix = "⚠️" if r["shap_value"] > 0 else "✅"
-                st.markdown(f"{prefix} {explanation}")
-
-            st.divider()
-            st.caption("📋 RBI Compliance: WoE/IV Logistic Regression | Decision basis: Income, repayment history, credit utilization | Audit trail: Logged to predictions.db")
-
-        with col_right:
+        # Right column — Assessment Result
+        with result_col:
             st.subheader("Assessment Result")
             c1, c2, c3 = st.columns(3)
             c1.metric("Credit Score", f"{dot} {score}", label)
             c2.metric("Risk Band", band)
             c3.metric("Default Probability", f"{prob * 100:.2f}%")
-            st.divider()
             if foir < 0.50:
                 st.success(f"✅ FOIR: {foir:.2f} — Within RBI guideline (max 0.50)")
             else:
                 st.warning(f"⚠️ FOIR: {foir:.2f} — Exceeds RBI guideline (max 0.50)")
-            st.subheader("Top 3 Factors Affecting This Decision")
             _labels = [_LABEL_MAP.get(r["feature"], r["feature"]) for r in top3]
             _values = [r["shap_value"] for r in top3]
             _colors = ["#FF4B4B" if v > 0 else "#00CC44" for v in _values]
@@ -130,11 +112,35 @@ def page_loan_officer():
             plt.rcParams["text.color"] = "white"
             plt.rcParams["axes.labelcolor"] = "white"
             plt.rcParams["xtick.color"] = "white"
-            fig_shap, ax_shap = plt.subplots(figsize=(8, 3))
+            fig_shap, ax_shap = plt.subplots(figsize=(6, 3))
             ax_shap.barh(_labels, _values, color=_colors)
             ax_shap.axvline(0, color="white", linewidth=0.8)
             ax_shap.set_xlabel("SHAP Value")
             st.pyplot(fig_shap)
+
+        # Section 3 — Decision Explanation full width
+        st.divider()
+        st.subheader("Decision Explanation")
+        exp_left, exp_right = st.columns([1, 1])
+
+        with exp_left:
+            if band == "Low Risk":
+                st.success("✅ Applicant appears financially stable. Loan recommended for approval.")
+            elif band == "Medium Risk":
+                st.warning("⚠️ Applicant shows moderate risk. Consider reduced loan amount or higher interest rate.")
+            else:
+                st.error("🚨 High likelihood of default. Loan not recommended without collateral.")
+            st.markdown("<span style='font-size:0.85rem;opacity:0.75;'>📋 RBI Compliance: WoE/IV Logistic Regression | Decision basis: Income, repayment history, credit utilization | Audit trail: Logged to predictions.db</span>", unsafe_allow_html=True)
+
+        with exp_right:
+            st.markdown("<p style='font-size:1.1rem;font-weight:700;margin-bottom:0.5rem;'>Key Risk Factors:</p>", unsafe_allow_html=True)
+            for r in top3:
+                feat_label = _LABEL_MAP.get(r["feature"], r["feature"])
+                val = _input_map.get(feat_label, 0)
+                explain_fn = _EXPLAIN.get(feat_label)
+                explanation = explain_fn(val) if explain_fn else feat_label
+                prefix = "⚠️" if r["shap_value"] > 0 else "✅"
+                st.markdown(f"<p style='font-size:1.1rem;line-height:1.6;margin:0.4rem 0;'>{prefix} {explanation}</p>", unsafe_allow_html=True)
 
 
 def page_portfolio():
