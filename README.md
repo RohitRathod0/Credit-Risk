@@ -9,7 +9,7 @@ A production-grade credit risk scoring system built for Indian NBFC workflows �
 | Service | URL |
 |---|---|
 | ⚡ FastAPI Docs | [credit-risk-api-oui7.onrender.com/docs](https://credit-risk-api-oui7.onrender.com/docs) |
-| 📊 Streamlit Dashboard | [your-streamlit-url.onrender.com](https://your-streamlit-url.onrender.com) |
+| 📊 Streamlit Dashboard | [credit-risk-dashboard-uawc.onrender.com](https://credit-risk-dashboard-uawc.onrender.com) |
 
 > **Note:** Hosted on Render free tier — first request may take 30–60 seconds to wake the server.
 
