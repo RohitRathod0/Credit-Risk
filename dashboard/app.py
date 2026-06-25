@@ -80,11 +80,15 @@ def page_loan_officer():
             "NumberOfDependents": float(dependents),
         }
         try:
-            response = requests.post(API_URL, json=payload, timeout=10)
+            with st.spinner("🔄 Scoring applicant... (first request may take ~30s to wake the server)"):
+                response = requests.post(API_URL, json=payload, timeout=90)
             response.raise_for_status()
             result = response.json()
         except requests.exceptions.ConnectionError:
-            st.error("⚠️ Cannot connect to the API server at `http://127.0.0.1:8000`. Please start the backend API server and try again.")
+            st.error("⚠️ Cannot connect to the API server. Please check that the backend is running.")
+            st.stop()
+        except requests.exceptions.Timeout:
+            st.warning("⏳ The API server is warming up (Render free tier cold start). Please wait 30–60 seconds and click **Assess Credit Risk** again.")
             st.stop()
         except requests.exceptions.RequestException as e:
             st.error(f"⚠️ API request failed: {e}")
