@@ -2,3 +2,10 @@ venv/
 __pycache__/
 *.pyc
 .env
+
+# Data files — large CSVs not needed on Render
+data/cs-training.csv
+data/cs-test.csv
+
+# SQLite DB — runtime generated, not needed in repo
+data/*.db

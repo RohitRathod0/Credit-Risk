@@ -1,3 +1,4 @@
+import os
 import sqlite3
 import matplotlib.pyplot as plt
 import pandas as pd
@@ -7,7 +8,7 @@ import streamlit as st
 st.set_page_config(layout="wide")
 
 DB_PATH = "data/predictions.db"
-API_URL = "http://127.0.0.1:8000/credit-score"
+API_URL = os.getenv("API_URL", "http://127.0.0.1:8000/credit-score")
 
 _LABEL_MAP = {
     "RevolvingUtilizationOfUnsecuredLines": "Credit Utilization",
@@ -78,7 +79,16 @@ def page_loan_officer():
             "NumberOfTime6089DaysPastDueNotWorse": int(late_6089),
             "NumberOfDependents": float(dependents),
         }
-        result = requests.post(API_URL, json=payload).json()
+        try:
+            response = requests.post(API_URL, json=payload, timeout=10)
+            response.raise_for_status()
+            result = response.json()
+        except requests.exceptions.ConnectionError:
+            st.error("⚠️ Cannot connect to the API server at `http://127.0.0.1:8000`. Please start the backend API server and try again.")
+            st.stop()
+        except requests.exceptions.RequestException as e:
+            st.error(f"⚠️ API request failed: {e}")
+            st.stop()
 
         score = result["credit_score"]
         prob = result["default_probability"]
