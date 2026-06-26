@@ -169,19 +169,6 @@ curl -X POST https://credit-risk-api-oui7.onrender.com/credit-score \
 
 ---
 
-## 📝 Resume Bullets
-
-> Copy-paste ready — XYZ format (Accomplished X, measured by Y, by doing Z)
-
-- Built production credit risk scorecard using WoE/IV feature engineering and Logistic Regression achieving **Gini 0.72** and **KS 0.57**, outperforming industry threshold of 0.50
-
-- Implemented **SHAP explainability** generating top-3 rejection reasons per applicant, satisfying RBI explainability requirements for NBFC loan decisioning
-
-- Deployed **FastAPI scoring endpoint** on Render with sub-100ms inference, logging all predictions to SQLite audit trail
-
-- Built **dual-view Streamlit dashboard** — loan officer scoring portal with FOIR RBI guideline validation and risk manager portfolio view with CSV export
-
----
 
 ## 🛠️ Tech Stack
 
